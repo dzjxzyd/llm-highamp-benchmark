@@ -17,10 +17,6 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-
-# ----------------------------
-# utils
-# ----------------------------
 def safe_model_tag(model_id: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "_", model_id)
 
@@ -32,15 +28,9 @@ def needs_space_separated(model_id: str) -> bool:
     mid = model_id.lower()
     return any(k in mid for k in ["rostlab", "prot_t5", "prot_bert", "distilprotbert"])
 
-@torch.no_grad()
 def mean_pool(last_hidden: torch.Tensor,
               attn_mask: torch.Tensor,
               special_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-    """
-    last_hidden: [B, L, H]
-    attn_mask:  [B, L] 1=valid,0=pad
-    special_mask: [B, L] 1=special tokens (CLS/SEP/BOS/EOS...), optional
-    """
     mask = attn_mask.bool()
 
     # special_mask 有些 tokenizer 可能行为怪（甚至全 1），要做“保底”
@@ -56,12 +46,6 @@ def mean_pool(last_hidden: torch.Tensor,
     summed = (last_hidden * mask_f).sum(dim=1)     # [B, H]
     denom = mask_f.sum(dim=1).clamp(min=1.0)       # [B, 1]
     return summed / denom
-
-def masked_max_pool(last_hidden, attn_mask):
-    # last_hidden: [B,L,H], attn_mask: [B,L]
-    mask = attn_mask.bool().unsqueeze(-1)  # [B,L,1]
-    x = last_hidden.masked_fill(~mask, -1e9)
-    return x.max(dim=1).values  # [B,H]
 
 def compute_metrics(y_true: np.ndarray, y_prob: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     acc = accuracy_score(y_true, y_pred)
@@ -80,42 +64,26 @@ def compute_metrics(y_true: np.ndarray, y_prob: np.ndarray, y_pred: np.ndarray) 
     ap = average_precision_score(y_true, y_prob)
     return {"ACC": acc, "BACC": bacc, "Sn": sn, "Sp": sp, "MCC": mcc, "AUC": auc, "AP": ap}
 
-
-# ----------------------------
-# model loaders
-# ----------------------------
 def load_model_tokenizer_transformers(model_id: str, device: str):
     tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     cfg = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
 
-    torch_dtype = torch.float16 if str(device).startswith("cuda") else torch.float32
+    is_ankh = model_id.lower().startswith("synthyra/ankh")
 
-    # ✅ ANKH: encoder-only (T5EncoderModel)，避免 decoder_input_ids 报错
-    if ("ankh" in model_id.lower()) or (getattr(cfg, "model_type", "") == "t5"):
-        model = T5EncoderModel.from_pretrained(
-            model_id,
-            trust_remote_code=True,
-            torch_dtype=torch_dtype,
-        )
+    if is_ankh:
+        torch_dtype = torch.float32   # ✅ ANKH 强制 FP32
+        model = T5EncoderModel.from_pretrained(model_id, torch_dtype=torch_dtype)
     else:
-        model = AutoModel.from_pretrained(
-            model_id,
-            trust_remote_code=True,
-            torch_dtype=torch_dtype,
-        )
+        torch_dtype = torch.float16 if str(device).startswith("cuda") else torch.float32
+        if getattr(cfg, "model_type", "") == "t5":
+            model = T5EncoderModel.from_pretrained(model_id, torch_dtype=torch_dtype)
+        else:
+            model = AutoModel.from_pretrained(model_id, trust_remote_code=True, torch_dtype=torch_dtype)
 
     model.to(device).eval()
     return tok, model
 
-
-# ----------------------------
-# ESMC / ESM3 (esm lib)
-# ----------------------------
 def embed_sequences_esmc(model_id: str, seqs: List[str], device: str) -> np.ndarray:
-    """
-    ESM-C: use esm library (ESMC + LogitsConfig(return_embeddings=True))
-    See ESM cookbook quickstart. :contentReference[oaicite:4]{index=4}
-    """
     if "300m" in model_id.lower():
         esm_name = "esmc_300m"
     elif "600m" in model_id.lower():
@@ -160,12 +128,7 @@ def embed_sequences_esmc(model_id: str, seqs: List[str], device: str) -> np.ndar
     X = np.stack(vecs, axis=0)
     return np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
 
-
 def embed_sequences_esm3(seqs: List[str], device: str) -> np.ndarray:
-    """
-    ESM3: use esm library (ESM3.from_pretrained("esm3_sm_open_v1"))
-    Some repos are gated; you must accept license + login. :contentReference[oaicite:5]{index=5}
-    """
     from esm.models.esm3 import ESM3
     from esm.sdk.api import ESMProtein, SamplingConfig
 
@@ -202,15 +165,7 @@ def embed_sequences_esm3(seqs: List[str], device: str) -> np.ndarray:
     X = np.stack(vecs, axis=0)
     return np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
 
-
-# ----------------------------
-# DPLM (prefer official byprot; fallback to transformers)
-# ----------------------------
 def embed_sequences_dplm(model_id: str, seqs: List[str], device: str) -> np.ndarray:
-    """
-    Official loading in model card uses byprot DiffusionProteinLanguageModel. :contentReference[oaicite:6]{index=6}
-    If byprot not installed, fallback to transformers (may be suboptimal).
-    """
     try:
         from byprot.models.lm.dplm import DiffusionProteinLanguageModel  # type: ignore
         dplm = DiffusionProteinLanguageModel.from_pretrained(model_id)
@@ -243,10 +198,7 @@ def embed_sequences_dplm(model_id: str, seqs: List[str], device: str) -> np.ndar
         warnings.warn(f"[DPLM] byprot path failed ({type(e).__name__}: {e}). Fallback to transformers.")
         return embed_sequences_transformers(model_id, seqs, device, batch_size=2, max_length=256)
 
-
-# ----------------------------
-# generic transformers embed
-# ----------------------------
+@torch.no_grad()
 def embed_sequences_transformers(model_id: str,
                                 seqs: List[str],
                                 device: str,
@@ -257,8 +209,6 @@ def embed_sequences_transformers(model_id: str,
     all_vecs = []
     for i in tqdm(range(0, len(seqs), batch_size), desc=f"Embedding {model_id}"):
         batch_seqs = [clean_aa(s) for s in seqs[i:i+batch_size]]
-
-        # ✅ ANKH/ESM/ESM2/SaProt/Mistral-Prot：不要空格分隔
         batch_text = [" ".join(list(s)) for s in batch_seqs] if needs_space_separated(model_id) else batch_seqs
 
         enc = tok(
@@ -293,21 +243,27 @@ def embed_sequences_transformers(model_id: str,
         if attn_mask is None:
             attn_mask = torch.ones(last_hidden.shape[:2], device=device, dtype=torch.long)
 
-        if "mistral-prot" in model_id.lower():
-            vec = masked_max_pool(last_hidden, attn_mask)
+        is_t5_like = ("ankh" in model_id.lower()) or (getattr(model, "config", None) and getattr(model.config, "model_type", "") == "t5")
+
+        if is_t5_like:
+            vec = mean_pool(last_hidden, attn_mask, special_mask=None)   # ✅ T5/ANKH：别传 special_mask
         else:
             vec = mean_pool(last_hidden, attn_mask, special_mask)
-        vec = torch.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
-
-        # pooled 全零会直接把 LR 逼成“全预测正类”的 0.617 基线
+        """
         if (vec.abs().sum(dim=1) == 0).any().item():
             print(f"[WARN] zero pooled embedding exists for {model_id} (check tokenizer/pooling)")
-
+        
+        if i <= 3:
+            print("Example input:", batch_text[0][:80])
+            print("input_ids[0][:30]:", enc["input_ids"][0][:30].tolist())
+            print("attention_mask sum[0]:", int(enc["attention_mask"][0].sum()))
+            if "input_ids" in enc and enc["input_ids"].size(0) > 1:
+                print("input_ids[1][:30]:", enc["input_ids"][1][:30].tolist())
+        """
         all_vecs.append(vec.detach().cpu().float().numpy())
 
     X = np.concatenate(all_vecs, axis=0)
     return np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
-
 
 def embed_sequences(model_id: str,
                     seqs: List[str],
@@ -345,15 +301,11 @@ def embed_sequences(model_id: str,
     np.save(cache_path, X)
     return X
 
-
-# ----------------------------
-# main
-# ----------------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_csv", required=True)
     ap.add_argument("--seq_col", default="sequence")
-    ap.add_argument("--label_col", default="label")  # 你可以传 --label_col positive
+    ap.add_argument("--label_col", default="label")
 
     ap.add_argument("--model_id", required=True)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -380,6 +332,10 @@ def main():
 
     X = embed_sequences(args.model_id, seqs, args.device, args.batch_size, args.cache_dir, args.max_length)
 
+    print("X shape:", X.shape)
+    print("X mean std over dims:", X.std(axis=0).mean())
+    print("Unique rows (rounded):", np.unique(X.round(6), axis=0).shape[0], "/", X.shape[0])
+
     idx = np.arange(len(y))
     tr_idx, te_idx = train_test_split(
         idx,
@@ -405,7 +361,9 @@ def main():
     pipe.fit(X_tr, y_tr)
     y_prob = pipe.predict_proba(X_te)[:, 1]
     y_pred = (y_prob >= 0.5).astype(int)
-
+    print("y positive rate:", y.mean())
+    print("pred positive rate:", y_pred.mean(), "prob std:", y_prob.std())
+   
     m = compute_metrics(y_te, y_prob, y_pred)
     out = {
         "model_id": args.model_id,
@@ -423,7 +381,6 @@ def main():
 
     print("Saved:", out_path, flush=True)
     print(json.dumps(m, ensure_ascii=False, indent=2), flush=True)
-
 
 if __name__ == "__main__":
     main()
