@@ -1,0 +1,13 @@
+# ESM-C / ESM3 (requires esm + license agreement for some)
+EvolutionaryScale/esmc-300m-2024-12
+EvolutionaryScale/esmc-600m-2024-12
+facebook/esm2_t33_650M_UR50D
+EvolutionaryScale/esm3-sm-open-v1
+
+# ANKH
+Synthyra/ANKH_base
+Synthyra/ANKH_large
+
+# Other families
+RaphaelMourad/Mistral-Prot-v1-134M
+airkingbd/dplm_650m
