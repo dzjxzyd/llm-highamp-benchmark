@@ -1,0 +1,20 @@
+{
+  "model_id": "RaphaelMourad/Mistral-Prot-v1-134M",
+  "n": 3444,
+  "dim": 768,
+  "metrics": {
+    "ACC": 0.6168359941944848,
+    "BACC": 0.5,
+    "Sn": 1.0,
+    "Sp": 0.0,
+    "MCC": 0.0,
+    "AUC": 0.5028297682709447,
+    "AP": 0.6204422436608895
+  },
+  "split": {
+    "method": "train_test_split",
+    "test_size": 0.2,
+    "seed": 42
+  },
+  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+}

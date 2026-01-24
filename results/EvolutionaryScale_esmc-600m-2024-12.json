@@ -1,0 +1,20 @@
+{
+  "model_id": "EvolutionaryScale/esmc-600m-2024-12",
+  "n": 3444,
+  "dim": 1152,
+  "metrics": {
+    "ACC": 0.7474600870827286,
+    "BACC": 0.7414839572192513,
+    "Sn": 0.7670588235294118,
+    "Sp": 0.7159090909090909,
+    "MCC": 0.4760431036537899,
+    "AUC": 0.8235383244206774,
+    "AP": 0.8759092675777419
+  },
+  "split": {
+    "method": "train_test_split",
+    "test_size": 0.2,
+    "seed": 42
+  },
+  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+}

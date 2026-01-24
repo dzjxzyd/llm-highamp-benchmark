@@ -1,0 +1,20 @@
+{
+  "model_id": "facebook/esm2_t33_650M_UR50D",
+  "n": 3444,
+  "dim": 1280,
+  "metrics": {
+    "ACC": 0.5573294629898403,
+    "BACC": 0.5428832442067737,
+    "Sn": 0.6047058823529412,
+    "Sp": 0.4810606060606061,
+    "MCC": 0.08426649660656782,
+    "AUC": 0.5465775401069518,
+    "AP": 0.6520964744186812
+  },
+  "split": {
+    "method": "train_test_split",
+    "test_size": 0.2,
+    "seed": 42
+  },
+  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+}

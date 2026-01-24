@@ -1,0 +1,20 @@
+{
+  "model_id": "airkingbd/dplm_650m",
+  "n": 3444,
+  "dim": 1280,
+  "metrics": {
+    "ACC": 0.760522496371553,
+    "BACC": 0.7621167557932264,
+    "Sn": 0.7552941176470588,
+    "Sp": 0.7689393939393939,
+    "MCC": 0.5127673203931501,
+    "AUC": 0.835222816399287,
+    "AP": 0.8820046313224384
+  },
+  "split": {
+    "method": "train_test_split",
+    "test_size": 0.2,
+    "seed": 42
+  },
+  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+}

@@ -1,0 +1,20 @@
+{
+  "model_id": "Synthyra/ANKH_base",
+  "n": 3444,
+  "dim": 768,
+  "metrics": {
+    "ACC": 0.7256894049346879,
+    "BACC": 0.7188146167557933,
+    "Sn": 0.7482352941176471,
+    "Sp": 0.6893939393939394,
+    "MCC": 0.4311454790230997,
+    "AUC": 0.7985294117647058,
+    "AP": 0.8537522583861576
+  },
+  "split": {
+    "method": "train_test_split",
+    "test_size": 0.2,
+    "seed": 42
+  },
+  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+}
