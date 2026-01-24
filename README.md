@@ -57,6 +57,121 @@ Example row:
 ```csv
 sequence,positive
 AAAKAA...,1
+
+Sequence cleaning
+
+Before tokenization, sequences are normalized:
+
+strip & uppercase
+
+map rare amino acids U, Z, O, B -> X
+
+Note: You should ensure the sequences are valid for your chosen tokenizer/model (some models expect extra structure tokens, see Models Supported
+).
+
+Dataset statistics (fill in if you plan to publish)
+
+Total samples: [TODO]
+
+Positive rate: [TODO]
+
+Sequence length: min/median/95%/max [TODO]
+
+Source / license: [TODO]
+
+Method
+1) Embedding extraction
+
+By default:
+
+Tokenize with Hugging Face tokenizer (or esm SDK for ESM-C/ESM3)
+
+Compute per-sequence embedding by pooling per-token hidden states:
+
+Mean pooling over non-padding tokens (default for most models)
+
+Optional max pooling for models where the model card suggests it (e.g., Mistral-Prot)
+
+Implementation notes:
+
+Embeddings are cached under cache/<safe_model_id>.npy
+
+Embedding functions run under torch.no_grad() for efficiency
+
+2) Train/test split
+
+Stratified train_test_split
+
+Default: test_size=0.2, seed=42
+
+A split file is saved so the same split can be reused.
+
+3) Classifier
+
+scikit-learn Pipeline:
+
+SimpleImputer(strategy="constant", fill_value=0.0)
+
+MinMaxScaler()
+
+LogisticRegression(max_iter=5000, class_weight="balanced", solver="liblinear")
+
+Threshold:
+
+y_pred = (y_prob >= 0.5)
+
+4) Metrics
+
+Reported on test split:
+
+ACC
+
+Balanced Accuracy (BACC)
+
+Sensitivity / Recall (Sn)
+
+Specificity (Sp)
+
+Matthews Correlation Coefficient (MCC)
+
+AUROC (AUC)
+
+Average Precision (AP)
+
+Models Supported
+
+You can pass any Hugging Face model id via --model_id, but this repo includes special handling for several families:
+
+Transformers-based PLMs (Hugging Face)
+
+facebook/esm2_t33_650M_UR50D (ESM2)
+
+Synthyra/ANKH_base (ANKH, encoder-only T5)
+
+RaphaelMourad/Mistral-Prot-v1-134M (Mistral-Prot)
+
+yarongef/DistilProtBert
+
+Rostlab/prot_bert / Rostlab/prot_t5_* (space-separated tokenization)
+
+ESM SDK-based models (esm library)
+
+EvolutionaryScale/esmc-300m-2024-12
+
+EvolutionaryScale/esmc-600m-2024-12
+
+EvolutionaryScale/esm3-sm-open-v1 (may require license acceptance / gated access)
+
+Model-specific caveats
+
+ANKH: encoder-only; load with T5EncoderModel; recommended tensor type F32 (more stable).
+
+Mistral-Prot: model card expects embedding hidden size 256; requires Transformers ≥ 4.34.0.
+
+ESM: ESM authors explicitly warn not to use BOS embedding for pretrained models; prefer mean/per_tok pooling.
+
+Installation
+Option A: pip (recommended)
 Create an environment:
 
 python -m venv .venv
