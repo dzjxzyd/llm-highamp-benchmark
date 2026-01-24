@@ -1,336 +1,336 @@
 # llm-highamp-benchmark
 HighAMP-Bench: Benchmarking LLMs for Highly Active Antimicrobial Peptide
 
-# Protein Language Model Benchmark (Embeddings + Logistic Regression)
+# PLM Linear-Probe Benchmark (Protein Embeddings + Logistic Regression)
 
-Benchmark multiple protein language models (PLMs) on a binary classification dataset by:
-1) extracting fixed-length sequence embeddings, then
-2) training a Logistic Regression (LR) classifier on top.
+Benchmark multiple **protein language models (PLMs)** on a **binary classification** dataset by:
+1) extracting fixed-length sequence embeddings, then  
+2) training a **logistic regression (LR)** linear probe on top.
 
-This repo is designed for **fast, apples-to-apples horizontal comparison** across ~10 PLMs (e.g., ESM-C, ESM2, ANKH, Mistral-Prot, etc.). Even if some models underperform a stronger task-specific baseline (e.g., AMP Classifier), the comparison is still valuable for model selection and future improvements.
-
----
-
-## Table of Contents
-- [Project Overview](#project-overview)
-- [Dataset](#dataset)
-- [Method](#method)
-- [Models Supported](#models-supported)
-- [Installation](#installation)
-- [Reproducibility](#reproducibility)
-- [Run a Benchmark](#run-a-benchmark)
-- [Outputs](#outputs)
-- [Summarize Results](#summarize-results)
-- [Troubleshooting](#troubleshooting)
-- [Citation](#citation)
-- [License](#license)
+This repo is intended for **fair horizontal comparison** across ~10 models (e.g., **ESM-C**, **ESM2**, **ANKH**, **Mistral-Prot**, etc.). Even if some models underperform stronger task-specific baselines, the comparison is still useful for **model selection** and follow-up optimization.
 
 ---
 
-## Project Overview
+## Repo layout
 
-### What this repo does
-For each PLM:
-- Load model & tokenizer
-- Convert protein sequences -> embeddings (cached to disk)
-- Split data into train/test with stratification
-- Fit a scikit-learn LR classifier on embeddings
-- Report metrics (ACC, BACC, Sn, Sp, MCC, AUC, AP)
-- Save results as JSON for later aggregation
-
-### Why LR?
-LR is simple, strong enough as a linear probe, easy to reproduce, and makes the embedding quality differences easy to interpret.
+```text
+.
+├─ plm_lr_benchmark.py          # main benchmark script (embeddings -> LR -> metrics -> JSON)
+├─ summarize_results.py         # aggregate results/*.json -> results/summary.(csv|xlsx)
+├─ data.csv                     # (not included) your dataset
+├─ cache/                       # cached embeddings (*.npy)
+└─ results/                     # per-model JSON outputs + summary tables
+````
 
 ---
 
 ## Dataset
 
-### Input format (CSV)
-A single CSV file is expected (e.g., `data.csv`) with at least:
+### Expected input (CSV)
 
-| column      | type | description |
-|-------------|------|-------------|
-| `sequence`  | str  | amino acid sequence (protein/peptide) |
-| `positive`  | int  | binary label: 1=positive, 0=negative |
+Your CSV must contain at least:
 
-Example row:
+| column     | type | description                    |
+| ---------- | ---- | ------------------------------ |
+| `sequence` | str  | amino acid sequence            |
+| `label` | int  | label (1=positive, 0=negative) |
+
+Example:
+
 ```csv
 sequence,positive
 AAAKAA...,1
+```
 
-Sequence cleaning
+### Preprocessing in code
 
 Before tokenization, sequences are normalized:
 
-strip & uppercase
+* `strip()` and `upper()`
+* map rare amino acids: `U, Z, O, B -> X`
 
-map rare amino acids U, Z, O, B -> X
+---
 
-Note: You should ensure the sequences are valid for your chosen tokenizer/model (some models expect extra structure tokens, see Models Supported
-).
+## Method
 
-Dataset statistics (fill in if you plan to publish)
+### 1) Embedding extraction (per model)
 
-Total samples: [TODO]
+For each model, sequences are tokenized and fed through the model in inference mode (`torch.no_grad()`).
 
-Positive rate: [TODO]
+**Pooling (default):**
 
-Sequence length: min/median/95%/max [TODO]
+* mean pooling over valid (non-padding) tokens
+* special tokens can be excluded via `special_tokens_mask` (when reliable)
 
-Source / license: [TODO]
+**Model-specific routing (as implemented):**
 
-Method
-1) Embedding extraction
+* **ESM-C / ESM3**: uses `esm` SDK route (not pure Transformers)
+* **ANKH**: encoder-only **T5EncoderModel** route (recommended FP32)
+* **DPLM**: prefer `byprot` official route if installed; otherwise fallback to Transformers
+* **Mistral-Prot**: often uses **max pooling** (model card example), but FP16 max-pool masking needs care
 
-By default:
+**Caching:**
+Embeddings are cached per model:
 
-Tokenize with Hugging Face tokenizer (or esm SDK for ESM-C/ESM3)
+* `cache/<safe_model_tag>.npy`
 
-Compute per-sequence embedding by pooling per-token hidden states:
+So repeated runs don’t recompute embeddings.
 
-Mean pooling over non-padding tokens (default for most models)
+---
 
-Optional max pooling for models where the model card suggests it (e.g., Mistral-Prot)
+### 2) Train/test split
 
-Implementation notes:
+Uses stratified split:
 
-Embeddings are cached under cache/<safe_model_id>.npy
+* `train_test_split(..., test_size=0.2, seed=42, stratify=y)`
 
-Embedding functions run under torch.no_grad() for efficiency
+Split indices are saved to:
 
-2) Train/test split
+* `results/split_seed{seed}_test{test_size}.npz`
 
-Stratified train_test_split
+---
 
-Default: test_size=0.2, seed=42
+### 3) Linear probe classifier
 
-A split file is saved so the same split can be reused.
+A scikit-learn pipeline:
 
-3) Classifier
+* `SimpleImputer(strategy="constant", fill_value=0.0)`
+* `MinMaxScaler()`
+* `LogisticRegression(max_iter=5000, class_weight="balanced", solver="liblinear")`
 
-scikit-learn Pipeline:
+Decision threshold:
 
-SimpleImputer(strategy="constant", fill_value=0.0)
+* `y_pred = (y_prob >= 0.5)`
 
-MinMaxScaler()
+---
 
-LogisticRegression(max_iter=5000, class_weight="balanced", solver="liblinear")
+### 4) Metrics
 
-Threshold:
+Computed on the **test split**:
 
-y_pred = (y_prob >= 0.5)
+* ACC
+* Balanced Accuracy (BACC)
+* Sensitivity / Recall (Sn)
+* Specificity (Sp)
+* Matthews Correlation Coefficient (MCC)
+* AUROC (AUC)
+* Average Precision (AP)
 
-4) Metrics
+---
 
-Reported on test split:
+## Models
 
-ACC
+You can pass any Hugging Face model id via `--model_id`. The script also contains model-specific handling for:
 
-Balanced Accuracy (BACC)
+### Transformers family
 
-Sensitivity / Recall (Sn)
+* `facebook/esm2_*` (ESM2)
+* `Synthyra/ANKH_base` (ANKH, encoder-only T5)
+* `RaphaelMourad/Mistral-Prot-v1-134M` (Mistral-Prot)
+* `Rostlab/prot_bert`, `Rostlab/prot_t5_*` (often needs space-separated AAs)
+* others as long as `AutoTokenizer` + `AutoModel` works
 
-Specificity (Sp)
+### ESM SDK family (`esm` library)
 
-Matthews Correlation Coefficient (MCC)
+* `EvolutionaryScale/esmc-300m-2024-12`
+* `EvolutionaryScale/esmc-600m-2024-12`
+* `EvolutionaryScale/esm3-sm-open-v1` *(may require license / gated access)*
 
-AUROC (AUC)
+---
 
-Average Precision (AP)
+## Installation
 
-Models Supported
+### Option A (venv + pip)
 
-You can pass any Hugging Face model id via --model_id, but this repo includes special handling for several families:
-
-Transformers-based PLMs (Hugging Face)
-
-facebook/esm2_t33_650M_UR50D (ESM2)
-
-Synthyra/ANKH_base (ANKH, encoder-only T5)
-
-RaphaelMourad/Mistral-Prot-v1-134M (Mistral-Prot)
-
-yarongef/DistilProtBert
-
-Rostlab/prot_bert / Rostlab/prot_t5_* (space-separated tokenization)
-
-ESM SDK-based models (esm library)
-
-EvolutionaryScale/esmc-300m-2024-12
-
-EvolutionaryScale/esmc-600m-2024-12
-
-EvolutionaryScale/esm3-sm-open-v1 (may require license acceptance / gated access)
-
-Model-specific caveats
-
-ANKH: encoder-only; load with T5EncoderModel; recommended tensor type F32 (more stable).
-
-Mistral-Prot: model card expects embedding hidden size 256; requires Transformers ≥ 4.34.0.
-
-ESM: ESM authors explicitly warn not to use BOS embedding for pretrained models; prefer mean/per_tok pooling.
-
-Installation
-Option A: pip (recommended)
-Create an environment:
-
+```bash
 python -m venv .venv
-# Linux/Mac:
-source .venv/bin/activate
-# Windows (PowerShell):
+# Windows PowerShell:
 .venv\Scripts\Activate.ps1
-
-
-Install dependencies:
+# macOS/Linux:
+# source .venv/bin/activate
 
 pip install -U pip
-pip install torch
-pip install transformers scikit-learn pandas numpy tqdm openpyxl
-pip install huggingface_hub
 
+# Core
+pip install torch numpy pandas scikit-learn tqdm openpyxl
 
-Optional extras:
+# Hugging Face
+pip install transformers huggingface_hub
 
-# For ESM-C / ESM3 (if you use those routes)
+# Optional: ESM SDK (needed for ESM-C/ESM3 routes)
 pip install esm
 
-# For faster downloads / better device placement (optional)
+# Optional: accelerate (helps with some HF loading patterns)
 pip install accelerate
+```
 
-Option B: conda
+### Option B (conda)
+
+```bash
 conda create -n plm-bench python=3.10 -y
 conda activate plm-bench
-pip install torch transformers scikit-learn pandas numpy tqdm openpyxl huggingface_hub
+pip install -U pip
+pip install torch numpy pandas scikit-learn tqdm openpyxl transformers huggingface_hub
+pip install esm accelerate
+```
 
-Reproducibility
-1) Record environment
+---
 
-Run and save output in your paper/notes:
+## Reproducibility
 
-python -c "import platform, torch, transformers, sklearn; \
-print('python', platform.python_version()); \
-print('torch', torch.__version__); \
-print('cuda', torch.version.cuda); \
-print('transformers', transformers.__version__); \
-print('sklearn', sklearn.__version__)"
+### Record your environment
 
+Run:
 
-Also save:
+```bash
+python - << 'PY'
+import platform, torch
+import transformers, sklearn, pandas, numpy
+print("python:", platform.python_version())
+print("torch:", torch.__version__)
+print("cuda:", torch.version.cuda)
+print("transformers:", transformers.__version__)
+print("sklearn:", sklearn.__version__)
+print("pandas:", pandas.__version__)
+print("numpy:", numpy.__version__)
+PY
+```
 
+Freeze exact deps:
+
+```bash
 pip freeze > requirements_freeze.txt
+```
 
-2) Hugging Face login (for gated/private models)
+### Hugging Face login (for gated/private models)
+
+```bash
 hf auth login
-# or legacy:
-huggingface-cli login
+```
 
-3) Cache & offline mode
+---
 
-Default cache is ~/.cache/huggingface/hub (Windows: C:\Users\<you>\.cache\huggingface\hub)
+## Run the benchmark
 
-Change cache:
+### Single model
 
-# Linux/Mac
-export HF_HUB_CACHE=/path/to/hf_cache
-# Windows PowerShell
-setx HF_HUB_CACHE "D:\hf_cache"
-
-
-Offline mode (requires models already cached):
-
-# Linux/Mac
-export HF_HUB_OFFLINE=1
-# Windows PowerShell
-setx HF_HUB_OFFLINE 1
-
-4) Determinism notes
-
-Train/test split controlled by --seed
-
-GPU floating point and some ops may still introduce minor nondeterminism.
-
-For strict determinism, consider running embeddings on CPU (slower) and pin versions.
-
-Run a Benchmark
-
-Basic usage:
-
-python -u plm_lr_benchmark.py \
-  --data_csv data.csv \
-  --seq_col sequence \
-  --label_col positive \
-  --model_id facebook/esm2_t33_650M_UR50D \
-  --batch_size 2 \
+```bash
+python -u plm_lr_benchmark.py ^
+  --data_csv data.csv ^
+  --seq_col sequence ^
+  --label_col positive ^
+  --model_id Synthyra/ANKH_base ^
+  --batch_size 1 ^
   --max_length 256
+```
 
+### Another model (example: ESM2)
 
-Recommended (GPU):
+```bash
+python -u plm_lr_benchmark.py ^
+  --data_csv data.csv ^
+  --seq_col sequence ^
+  --label_col positive ^
+  --model_id facebook/esm2_t33_650M_UR50D ^
+  --batch_size 2 ^
+  --max_length 256
+```
 
-Start with smaller batch_size and increase until VRAM is stable.
+> Tips:
+>
+> * Increase `--max_length` if your sequences are long (avoid truncation).
+> * Start with a small `--batch_size` to avoid OOM, then scale up.
 
-Increase --max_length if your sequences are long (avoid heavy truncation).
+---
 
-Run multiple models (example):
+## Outputs
 
-python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence --label_col positive --model_id Synthyra/ANKH_base --batch_size 1 --max_length 256
-python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence --label_col positive --model_id facebook/esm2_t33_650M_UR50D --batch_size 2 --max_length 512
-python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence --label_col positive --model_id EvolutionaryScale/esmc-300m-2024-12 --batch_size 1 --max_length 256
+Each run writes:
 
-Outputs
+* `cache/<model_tag>.npy` — cached embeddings
+* `results/split_seed{seed}_test{test_size}.npz` — split indices
+* `results/<model_tag>.json` — metrics and metadata
 
-After each run, files are written to:
+Example JSON:
 
-cache/<model_tag>.npy — cached embeddings
-
-results/split_seed{seed}_test{test_size}.npz — indices for reproducible split
-
-results/<model_tag>.json — metrics and metadata
-
-Example JSON structure:
-
+```json
 {
   "model_id": "facebook/esm2_t33_650M_UR50D",
   "n": 4546,
   "dim": 1280,
-  "metrics": {"ACC":0.55,"BACC":0.54,"Sn":0.60,"Sp":0.48,"MCC":0.08,"AUC":0.55,"AP":0.65},
-  "split": {"method":"train_test_split","test_size":0.2,"seed":42},
+  "metrics": {
+    "ACC": 0.55,
+    "BACC": 0.54,
+    "Sn": 0.60,
+    "Sp": 0.48,
+    "MCC": 0.08,
+    "AUC": 0.55,
+    "AP": 0.65
+  },
+  "split": {"method": "train_test_split", "test_size": 0.2, "seed": 42},
   "note": "..."
 }
+```
 
-Summarize Results
+---
 
-Aggregate all results/*.json into a single table:
+## Summarize results
 
+Aggregate all `results/*.json` into a single table:
+
+```bash
 python summarize_results.py
-
+```
 
 Outputs:
 
-results/summary.csv
+* `results/summary.csv`
+* `results/summary.xlsx`
 
-results/summary.xlsx
+Sorted by: `MCC` ↓, then `AP` ↓, then `AUC` ↓.
 
-By default, rows are sorted by MCC, then AP, then AUC.
+---
 
-Troubleshooting
-“oneDNN custom operations are on …”
+## Troubleshooting
 
-This comes from TensorFlow logs (some environments import TF indirectly). To suppress:
+### TensorFlow oneDNN message
 
-# Windows PowerShell (current session)
+If you see:
+`To turn them off, set the environment variable TF_ENABLE_ONEDNN_OPTS=0`
+
+Windows PowerShell (current session):
+
+```powershell
 $env:TF_ENABLE_ONEDNN_OPTS="0"
 python -u plm_lr_benchmark.py ...
+```
 
-Mistral-Prot overflow with FP16 max pooling
+### FP16 overflow in masked max pooling (e.g., Mistral-Prot)
 
-Use BF16/FP32 for pooling or cast to float32 before masked fill.
+If you see errors like:
+`value cannot be converted to type at::Half without overflow`
 
-ESM2 performance seems unexpectedly low
+Fix: cast to float32 for the masked-fill / pooling step, then cast back if needed.
 
-Common causes:
+### Weird “collapsed” embeddings (many duplicate rows)
 
-Heavy truncation by --max_length
+Sanity checks you already print are good:
 
-Pooling choice (mean vs pooler_output vs layer selection)
+* `X mean std over dims`
+* `Unique rows`
+  If uniqueness is very low, it’s usually tokenizer/pooling/precision.
 
-Dataset mismatch (peptides vs full proteins)
+---
+
+## References (model cards / docs)
+
+* ANKH_base: [https://huggingface.co/Synthyra/ANKH_base](https://huggingface.co/Synthyra/ANKH_base)
+* Mistral-Prot-v1-134M: [https://huggingface.co/RaphaelMourad/Mistral-Prot-v1-134M](https://huggingface.co/RaphaelMourad/Mistral-Prot-v1-134M)
+* ESM repo (repr-layers/include notes): [https://github.com/facebookresearch/esm](https://github.com/facebookresearch/esm)
+* Hugging Face Transformers install: [https://huggingface.co/docs/transformers/en/installation](https://huggingface.co/docs/transformers/en/installation)
+* Hugging Face Hub CLI (hf auth login): [https://huggingface.co/docs/huggingface_hub/main/guides/cli](https://huggingface.co/docs/huggingface_hub/main/guides/cli)
+* PyTorch `no_grad`: [https://docs.pytorch.org/docs/stable/generated/torch.no_grad](https://docs.pytorch.org/docs/stable/generated/torch.no_grad)
+* scikit-learn `train_test_split`: [https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html)
+* scikit-learn `LogisticRegression`: [https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html)
+
+---
