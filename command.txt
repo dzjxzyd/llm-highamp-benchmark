@@ -1,0 +1,10 @@
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence --model_id EvolutionaryScale/esmc-300m-2024-12 --batch_size 8 --max_length 256
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id EvolutionaryScale/esmc-600m-2024-12 --batch_size 2 --max_length 256
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id facebook/esm2_t33_650M_UR50D --batch_size 2 --max_length 256
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id EvolutionaryScale/esm3-sm-open-v1 --batch_size 2 --max_length 256
+
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id Synthyra/ANKH_base --batch_size 1 --max_length 256
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id Synthyra/ANKH_large --batch_size 1 --max_length 256
+
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id RaphaelMourad/Mistral-Prot-v1-134M --batch_size 8 --max_length 256
+python -u plm_lr_benchmark.py --data_csv data.csv --seq_col sequence  --model_id airkingbd/dplm_650m --batch_size 2 --max_length 256
