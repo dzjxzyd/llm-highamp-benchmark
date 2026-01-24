@@ -1,7 +1,5 @@
-# llm-highamp-benchmark
+# llm-highamp-benchmark (Protein Embeddings + Logistic Regression)
 HighAMP-Bench: Benchmarking LLMs for Highly Active Antimicrobial Peptide
-
-# PLM Linear-Probe Benchmark (Protein Embeddings + Logistic Regression)
 
 Benchmark multiple **protein language models (PLMs)** on a **binary classification** dataset by:
 1) extracting fixed-length sequence embeddings, then  
