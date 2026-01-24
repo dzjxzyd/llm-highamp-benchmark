@@ -36,7 +36,7 @@ Your CSV must contain at least:
 Example:
 
 ```csv
-sequence,positive
+sequence,label
 AAAKAA...,1
 ```
 
