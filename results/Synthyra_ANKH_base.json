@@ -2,19 +2,29 @@
   "model_id": "Synthyra/ANKH_base",
   "n": 3444,
   "dim": 768,
-  "metrics": {
-    "ACC": 0.7256894049346879,
-    "BACC": 0.7188146167557933,
-    "Sn": 0.7482352941176471,
+  "selection": {
+    "metric": "MCC",
+    "cv_table_csv": "solver_cv_Synthyra_ANKH_base_seed42_test0.2.csv",
+    "best_solver_group": "lbfgs",
+    "best_params": {
+      "clf__C": 1,
+      "clf__penalty": "l2",
+      "clf__solver": "lbfgs"
+    },
+    "cv_best_mcc": 0.4245094824194438
+  },
+  "test_metrics": {
+    "ACC": 0.7242380261248186,
+    "BACC": 0.7176381461675579,
+    "Sn": 0.7458823529411764,
     "Sp": 0.6893939393939394,
-    "MCC": 0.4311454790230997,
-    "AUC": 0.7985294117647058,
-    "AP": 0.8537522583861576
+    "MCC": 0.4286235167773476,
+    "AUC": 0.7989483065953654,
+    "AP": 0.8539956826024326
   },
   "split": {
     "method": "train_test_split",
     "test_size": 0.2,
     "seed": 42
-  },
-  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+  }
 }

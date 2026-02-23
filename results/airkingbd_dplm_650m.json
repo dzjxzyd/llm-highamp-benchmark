@@ -2,19 +2,29 @@
   "model_id": "airkingbd/dplm_650m",
   "n": 3444,
   "dim": 1280,
-  "metrics": {
-    "ACC": 0.760522496371553,
-    "BACC": 0.7621167557932264,
-    "Sn": 0.7552941176470588,
+  "selection": {
+    "metric": "MCC",
+    "cv_table_csv": "solver_cv_airkingbd_dplm_650m_seed42_test0.2.csv",
+    "best_solver_group": "saga",
+    "best_params": {
+      "clf__C": 1,
+      "clf__penalty": "l2",
+      "clf__solver": "saga"
+    },
+    "cv_best_mcc": 0.4564438098943505
+  },
+  "test_metrics": {
+    "ACC": 0.7590711175616836,
+    "BACC": 0.7609402852049911,
+    "Sn": 0.7529411764705882,
     "Sp": 0.7689393939393939,
-    "MCC": 0.5127673203931501,
-    "AUC": 0.835222816399287,
-    "AP": 0.8820046313224384
+    "MCC": 0.5103048674192061,
+    "AUC": 0.8349465240641711,
+    "AP": 0.8816231783757363
   },
   "split": {
     "method": "train_test_split",
     "test_size": 0.2,
     "seed": 42
-  },
-  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+  }
 }

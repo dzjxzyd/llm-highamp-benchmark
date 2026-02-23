@@ -2,19 +2,30 @@
   "model_id": "RaphaelMourad/Mistral-Prot-v1-134M",
   "n": 3444,
   "dim": 768,
-  "metrics": {
-    "ACC": 0.6168359941944848,
-    "BACC": 0.5,
-    "Sn": 1.0,
-    "Sp": 0.0,
-    "MCC": 0.0,
-    "AUC": 0.5028297682709447,
-    "AP": 0.6204422436608895
+  "selection": {
+    "metric": "MCC",
+    "cv_table_csv": "solver_cv_RaphaelMourad_Mistral-Prot-v1-134M_seed42_test0.2.csv",
+    "best_solver_group": "saga",
+    "best_params": {
+      "clf__C": 1,
+      "clf__l1_ratio": 0.8,
+      "clf__penalty": "elasticnet",
+      "clf__solver": "saga"
+    },
+    "cv_best_mcc": 0.2279746223038662
+  },
+  "test_metrics": {
+    "ACC": 0.6458635703918723,
+    "BACC": 0.6368894830659537,
+    "Sn": 0.6752941176470588,
+    "Sp": 0.5984848484848485,
+    "MCC": 0.2688774476442013,
+    "AUC": 0.6819786096256685,
+    "AP": 0.7483973116486433
   },
   "split": {
     "method": "train_test_split",
     "test_size": 0.2,
     "seed": 42
-  },
-  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+  }
 }

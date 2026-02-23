@@ -2,19 +2,30 @@
   "model_id": "EvolutionaryScale/esmc-600m-2024-12",
   "n": 3444,
   "dim": 1152,
-  "metrics": {
-    "ACC": 0.7474600870827286,
-    "BACC": 0.7414839572192513,
-    "Sn": 0.7670588235294118,
-    "Sp": 0.7159090909090909,
-    "MCC": 0.4760431036537899,
-    "AUC": 0.8235383244206774,
-    "AP": 0.8759092675777419
+  "selection": {
+    "metric": "MCC",
+    "cv_table_csv": "solver_cv_EvolutionaryScale_esmc-600m-2024-12_seed42_test0.2.csv",
+    "best_solver_group": "saga",
+    "best_params": {
+      "clf__C": 1,
+      "clf__l1_ratio": 0.2,
+      "clf__penalty": "elasticnet",
+      "clf__solver": "saga"
+    },
+    "cv_best_mcc": 0.477323196807219
+  },
+  "test_metrics": {
+    "ACC": 0.7445573294629898,
+    "BACC": 0.740565953654189,
+    "Sn": 0.7576470588235295,
+    "Sp": 0.7234848484848485,
+    "MCC": 0.47292075525335425,
+    "AUC": 0.8223707664884135,
+    "AP": 0.8746753178601546
   },
   "split": {
     "method": "train_test_split",
     "test_size": 0.2,
     "seed": 42
-  },
-  "note": "ESMC/ESM3 use esm library; ANKH uses T5EncoderModel; DPLM prefers byprot; SaProt may need structure tokens."
+  }
 }
